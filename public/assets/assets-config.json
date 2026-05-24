@@ -2,14 +2,14 @@
   "characters": {
     "vibe_knight": {
       "name": "Kỵ Sĩ Vibe",
-      "modelUrl": "assets/Hero_base.fbx",
+      "modelUrl": "Hero_base.fbx",
       "scale": 0.01,
       "animations": {
-        "idle": "assets/Idle.fbx",
-        "run": "assets/Run.fbx",
-        "attack": "assets/Attack.fbx",
-        "die": "assets/Die.fbx",
-        "hit": "assets/Hit.fbx"
+        "idle": "Idle.fbx",
+        "run": "Run.fbx",
+        "attack": "Attack.fbx",
+        "die": "Die.fbx",
+        "hit": "Hit.fbx"
       }
     }
   }
