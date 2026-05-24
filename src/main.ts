@@ -123,13 +123,14 @@ async function main(): Promise<void> {
     }
     attackKeyWasDown = attackDown;
 
-    const bounds = world.getBounds();
-    const p = player.getPosition();
-    player.setPosition(
-      Math.max(bounds.minX, Math.min(bounds.maxX, p.x)),
-      p.y,
-      Math.max(bounds.minZ, Math.min(bounds.maxZ, p.z)),
-    );
+    // Sync mesh position from physics body
+    if (player.body && player.mesh) {
+      const t = player.body.translation();
+      const bounds = world.getBounds();
+      const cx = Math.max(bounds.minX, Math.min(bounds.maxX, t.x));
+      const cz = Math.max(bounds.minZ, Math.min(bounds.maxZ, t.z));
+      player.mesh.position.set(cx, t.y, cz);
+    }
 
     player.update(dt);
     cameraController.update(dt);

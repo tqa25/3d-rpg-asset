@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { retargetClip } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { AssetConfig } from '../types/index.js';
 import { AssetRegistry } from './AssetRegistry.js';
 
@@ -86,60 +85,30 @@ export class AssetLoader {
   async loadAll(config: AssetConfig): Promise<void> {
     const registry = AssetRegistry.getInstance();
 
+    const jobs: Promise<void>[] = [];
+
     for (const [charId, charConfig] of Object.entries(config.characters)) {
       const modelUrl = this.resolveUrl(charConfig.modelUrl);
+      jobs.push(
+        this.loadFBX(modelUrl).then((model) => {
+          registry.set(`${charId}_model`, model);
+        }),
+      );
 
-      // Load base model
-      const model = await this.loadFBX(modelUrl);
-      registry.set(`${charId}_model`, model);
-
-      // Extract skeleton from the model's SkinnedMesh
-      let targetSkinned: THREE.SkinnedMesh | undefined;
-      model.traverse((child) => {
-        const mesh = child as THREE.SkinnedMesh;
-        if (mesh.isSkinnedMesh) {
-          targetSkinned = mesh;
-        }
-      });
-
-      // Load and retarget each animation
       for (const [animKey, animUrl] of Object.entries(charConfig.animations)) {
         const resolvedUrl = this.resolveUrl(animUrl);
-        const fbx = await this.loadFBX(resolvedUrl);
-
-        if (!fbx.animations || fbx.animations.length === 0) {
-          console.warn(`No animations found in ${animUrl}`);
-          continue;
-        }
-
-        let clip = fbx.animations[0];
-
-        if (targetSkinned && targetSkinned.skeleton) {
-          const animBones: THREE.Bone[] = [];
-          fbx.traverse((child) => {
-            const bone = child as THREE.Bone;
-            if (bone.isBone) {
-              animBones.push(bone);
+        jobs.push(
+          this.loadFBX(resolvedUrl).then((fbx) => {
+            if (fbx.animations && fbx.animations.length > 0) {
+              registry.set(`${charId}_anim_${animKey}`, fbx.animations[0]);
             }
-          });
-
-          if (animBones.length > 0) {
-            const sourceSkeleton = new THREE.Skeleton(animBones);
-            const sourceHelper = new THREE.Group() as THREE.Group & { skeleton: THREE.Skeleton };
-            sourceHelper.skeleton = sourceSkeleton;
-
-            try {
-              clip = retargetClip(targetSkinned, sourceHelper, clip);
-            } catch (e) {
-              console.warn(`retargetClip failed for ${animUrl}, using original clip:`, e);
-            }
-          }
-        }
-
-        registry.set(`${charId}_anim_${animKey}`, clip);
+          }),
+        );
       }
 
       registry.set(`${charId}_config`, charConfig);
     }
+
+    await Promise.all(jobs);
   }
 }

@@ -89,7 +89,7 @@ export class VirtualJoystick {
     }
 
     const normalizedX = dist > 0 ? dx / MAX_RADIUS : 0;
-    const normalizedZ = dist > 0 ? -(dy / MAX_RADIUS) : 0;
+    const normalizedZ = dist > 0 ? dy / MAX_RADIUS : 0;
     const clampedX = Math.max(-1, Math.min(1, normalizedX));
     const clampedZ = Math.max(-1, Math.min(1, normalizedZ));
 
