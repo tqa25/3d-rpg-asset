@@ -2,6 +2,7 @@ export class InputManager {
   private keys = new Map<string, boolean>();
   private joystickX = 0;
   private joystickZ = 0;
+  private _touchAttackPressed = false;
 
   constructor() {
     this.onKeyDown = this.onKeyDown.bind(this);
@@ -56,7 +57,11 @@ export class InputManager {
   }
 
   isAttackPressed(): boolean {
-    return this.isKeyDown('Space');
+    return this.isKeyDown('Space') || this._touchAttackPressed;
+  }
+
+  setTouchAttackPressed(pressed: boolean): void {
+    this._touchAttackPressed = pressed;
   }
 
   setJoystickInput(x: number, z: number): void {

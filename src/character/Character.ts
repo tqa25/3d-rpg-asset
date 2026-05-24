@@ -25,12 +25,17 @@ export class Character {
 
   isDead = false;
 
+  _invincibilityTimer = 0;
+  _invincibilityDuration: number;
+  _attackCooldownTimer = 0;
+  _attackCooldownDefault: number;
+
   private _position = new THREE.Vector3();
 
   constructor(
     scene: THREE.Scene,
     id: string,
-    config: { speed: number; maxHealth: number; attackDamage: number },
+    config: { speed: number; maxHealth: number; attackDamage: number; attackCooldown?: number; invincibilityDuration?: number },
   ) {
     this.scene = scene;
     this.id = id;
@@ -38,6 +43,8 @@ export class Character {
     this.maxHealth = config.maxHealth;
     this.health = config.maxHealth;
     this.attackDamage = config.attackDamage;
+    this._attackCooldownDefault = config.attackCooldown ?? 1.0;
+    this._invincibilityDuration = config.invincibilityDuration ?? 0.5;
     this.fsm = new CharacterFSM();
     this.actionQueue = new ActionQueue<string>();
   }
@@ -74,7 +81,14 @@ export class Character {
       this.currentAction.crossFadeTo(action, fadeIn, false);
     }
 
-    action.reset().play();
+    action.reset();
+    if (name === 'Idle' || name === 'Run') {
+      action.loop = THREE.LoopRepeat;
+    } else {
+      action.loop = THREE.LoopOnce;
+      action.clampWhenFinished = true;
+    }
+    action.play();
     this.currentAction = action;
   }
 
@@ -112,6 +126,13 @@ export class Character {
   update(dt: number): void {
     if (this.isDead || !this.mixer) return;
 
+    if (this._invincibilityTimer > 0) {
+      this._invincibilityTimer = Math.max(0, this._invincibilityTimer - dt);
+    }
+    if (this._attackCooldownTimer > 0) {
+      this._attackCooldownTimer = Math.max(0, this._attackCooldownTimer - dt);
+    }
+
     this.mixer.update(dt);
 
     if (!this.actionQueue.isEmpty()) {
@@ -127,8 +148,10 @@ export class Character {
 
   takeDamage(amount: number): void {
     if (this.isDead) return;
+    if (this._invincibilityTimer > 0) return;
 
     this.health = Math.max(0, this.health - amount);
+    this._invincibilityTimer = this._invincibilityDuration;
 
     if (this.health <= 0) {
       this.isDead = true;
@@ -145,7 +168,9 @@ export class Character {
 
   attack(): void {
     if (this.isDead) return;
+    if (this._attackCooldownTimer > 0) return;
 
+    this._attackCooldownTimer = this._attackCooldownDefault;
     this.actionQueue.enqueue('Attack');
 
     if (this.fsm.canTransition(CharacterState.Attack)) {
@@ -154,6 +179,10 @@ export class Character {
         this.playAnimation('Attack');
       }
     }
+  }
+
+  canAttack(): boolean {
+    return this._attackCooldownTimer <= 0 && !this.isDead;
   }
 
   move(x: number, z: number): void {

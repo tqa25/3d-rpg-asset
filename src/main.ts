@@ -13,6 +13,7 @@ import { MovementController } from './character/MovementController.js';
 import { CameraController } from './camera/CameraController.js';
 import { HUD } from './ui/HUD.js';
 import { VirtualJoystick } from './ui/VirtualJoystick.js';
+import { AttackButton } from './ui/AttackButton.js';
 import { CharacterState } from './types/index.js';
 import { HitboxController } from './combat/HitboxController.js';
 import { DamageSystem } from './combat/DamageSystem.js';
@@ -69,6 +70,10 @@ async function main(): Promise<void> {
 
   const joystick = new VirtualJoystick((x, z) => {
     inputManager.setJoystickInput(x, z);
+  });
+
+  const attackBtn = new AttackButton((pressed) => {
+    inputManager.setTouchAttackPressed(pressed);
   });
 
   // ============ Enemy (box) ============
@@ -150,9 +155,7 @@ async function main(): Promise<void> {
       attackTriggered = false;
     }
 
-    if (enemy.fsm.getState() !== CharacterState.Attack &&
-        enemy.fsm.getState() !== CharacterState.Hit &&
-        enemy.fsm.getState() !== CharacterState.Die) {
+    if (enemy.canAttack()) {
       const dist = enemy.getPosition().distanceTo(player.getPosition());
       if (dist < 2.5) {
         enemy.attack();
@@ -212,7 +215,10 @@ async function loadRealPlayerModel(
     player.setModel(model);
     for (const [key] of Object.entries(cfg.animations)) {
       const clip = registry.get(`vibe_knight_anim_${key}`);
-      if (clip) player.addAnimation(key, clip);
+      if (clip) {
+        const normalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
+        player.addAnimation(normalizedKey, clip);
+      }
     }
     player.playAnimation('Idle');
 

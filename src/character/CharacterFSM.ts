@@ -3,8 +3,8 @@ import { CharacterState } from '../types/index.js';
 const TRANSITIONS: Record<CharacterState, CharacterState[]> = {
   [CharacterState.Idle]: [CharacterState.Run, CharacterState.Attack, CharacterState.Hit, CharacterState.Die],
   [CharacterState.Run]: [CharacterState.Idle, CharacterState.Hit, CharacterState.Die],
-  [CharacterState.Attack]: [CharacterState.Idle, CharacterState.Die],
-  [CharacterState.Hit]: [CharacterState.Idle, CharacterState.Die],
+  [CharacterState.Attack]: [CharacterState.Idle, CharacterState.Die, CharacterState.Run],
+  [CharacterState.Hit]: [CharacterState.Idle, CharacterState.Die, CharacterState.Run],
   [CharacterState.Die]: [],
 };
 

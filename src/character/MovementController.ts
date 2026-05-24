@@ -27,15 +27,19 @@ export class MovementController {
     const velX = normX * this.character.speed;
     const velZ = normZ * this.character.speed;
 
-    this.character.setVelocity(velX, velZ);
-
-    if (this.character.fsm.getState() === CharacterState.Idle) {
-      if (this.character.fsm.transition(CharacterState.Run)) {
-        this.character.playAnimation('Run');
-      }
+    const state = this.character.fsm.getState();
+    if (state === CharacterState.Idle || state === CharacterState.Attack || state === CharacterState.Hit) {
+      this.character.setVelocity(velX, velZ);
+      this.character.playAnimation('Run');
+      this.character.fsm.transition(CharacterState.Run);
+      this.rotateTowards(normX, normZ, dt);
+      return;
     }
 
-    this.rotateTowards(normX, normZ, dt);
+    if (state === CharacterState.Run) {
+      this.character.setVelocity(velX, velZ);
+      this.rotateTowards(normX, normZ, dt);
+    }
   }
 
   private rotateTowards(x: number, z: number, dt: number): void {
