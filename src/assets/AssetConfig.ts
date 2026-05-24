@@ -3,7 +3,8 @@ import type { AssetConfig } from '../types/index.js';
 export type { AssetConfig, CharacterConfig } from '../types/index.js';
 
 export async function loadAssetConfig(): Promise<AssetConfig> {
-  const response = await fetch('/assets/assets-config.json');
+  const base = import.meta.env.BASE_URL || '/';
+  const response = await fetch(`${base}assets/assets-config.json`);
   if (!response.ok) {
     throw new Error(
       `Failed to load asset config: ${response.status} ${response.statusText}`,

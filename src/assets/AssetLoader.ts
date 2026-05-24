@@ -76,21 +76,29 @@ export class AssetLoader {
     });
   }
 
+  private resolveUrl(path: string): string {
+    const base = import.meta.env.BASE_URL || '/';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return base + path;
+  }
+
   async loadAll(config: AssetConfig): Promise<void> {
     const registry = AssetRegistry.getInstance();
 
     const jobs: Promise<void>[] = [];
 
     for (const [charId, charConfig] of Object.entries(config.characters)) {
+      const modelUrl = this.resolveUrl(charConfig.modelUrl);
       jobs.push(
-        this.loadFBX(charConfig.modelUrl).then((model) => {
+        this.loadFBX(modelUrl).then((model) => {
           registry.set(`${charId}_model`, model);
         }),
       );
 
       for (const [animKey, animUrl] of Object.entries(charConfig.animations)) {
+        const resolvedUrl = this.resolveUrl(animUrl);
         jobs.push(
-          this.loadFBX(animUrl).then((fbx) => {
+          this.loadFBX(resolvedUrl).then((fbx) => {
             if (fbx.animations && fbx.animations.length > 0) {
               registry.set(`${charId}_anim_${animKey}`, fbx.animations[0]);
             }
