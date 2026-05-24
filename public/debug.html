@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html><body>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+const results = [];
+function out(msg) {
+  results.push(msg);
+  console.log(msg);
+}
+
+async function main() {
+  const loader = new FBXLoader();
+
+  const model = await loader.loadAsync('/assets/Hero_base.fbx');
+  out('=== HERO_BASE ===');
+  out('Children: ' + model.children.length);
+
+  const bones = [];
+  model.traverse(c => { if (c.isBone) bones.push(c); });
+  out('Bones: ' + bones.length);
+  if (bones.length) out('Bones[0-4]: ' + bones.slice(0,5).map(b=>b.name).join(', '));
+
+  let skeleton = null;
+  model.traverse(c => { if (c.isSkinnedMesh) skeleton = c.skeleton; });
+  if (skeleton) {
+    out('Skeleton bones: ' + skeleton.bones.length);
+    out('Skeleton names[0-4]: ' + skeleton.bones.slice(0,5).map(b=>b.name).join(', '));
+  }
+
+  const meshes = [];
+  model.traverse(c => { if (c.isMesh) meshes.push(c); });
+  out('Meshes: ' + meshes.length);
+  out('Model animations: ' + (model.animations?.length ?? 0));
+
+  for (const name of ['Idle', 'Run', 'Attack', 'Hit', 'Die']) {
+    const a = await loader.loadAsync('/assets/' + name + '.fbx');
+    out('--- ' + name + ' ---');
+    out('Animations: ' + (a.animations?.length ?? 0));
+    if (a.animations?.length) {
+      const clip = a.animations[0];
+      out('Duration: ' + clip.duration);
+      out('Tracks: ' + clip.tracks.length);
+      if (clip.tracks.length > 0) {
+        out('Track[0-2]: ' + clip.tracks.slice(0,3).map(t=>t.name).join(', '));
+        if (skeleton) {
+          const skelNames = new Set(skeleton.bones.map(b => b.name));
+          let matching = 0;
+          for (const t of clip.tracks) {
+            const m = t.name.match(/^\.?([^\.]+)\./);
+            if (m && skelNames.has(m[1])) matching++;
+          }
+          out('Matching skeleton: ' + matching + '/' + clip.tracks.length);
+          if (matching === 0) {
+            out('Sample skeleton name: ' + [...skelNames][0]);
+            out('Sample track target: ' + clip.tracks[0].name.match(/^\.?([^\.]+)/)?.[1]);
+          }
+        }
+      }
+    }
+    const animBones = [];
+    a.traverse(c => { if (c.isBone) animBones.push(c); });
+    out('Bones in file: ' + animBones.length);
+  }
+
+  out('=== DONE ===');
+  window.__DEBUG_RESULT = results.join('\n');
+}
+
+main().catch(err => {
+  out('ERROR: ' + err.message);
+  window.__DEBUG_RESULT = results.join('\n');
+});
+</script>
+</body></html>
