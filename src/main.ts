@@ -33,46 +33,20 @@ async function main(): Promise<void> {
   const world = new WorldScene(scene);
   world.init();
 
-  loadingScreen.setText('Loading assets...');
-  const assetConfig = await loadAssetConfig();
-
-  const assetLoader = new AssetLoader();
-  let totalItems = 0;
-  for (const c of Object.values(assetConfig.characters)) {
-    totalItems += 1 + Object.keys(c.animations).length;
-  }
-  assetLoader.setOnProgress((loaded, _total) => {
-    loadingScreen.setProgress(loaded, totalItems);
-  });
-
-  await assetLoader.loadAll(assetConfig);
-
-  loadingScreen.setText('Spawning player...');
-
-  const cfg = assetConfig.characters['vibe_knight'];
-  const registry = AssetRegistry.getInstance();
-  const model = registry.get('vibe_knight_model') as THREE.Group;
-  model.scale.set(cfg.scale, cfg.scale, cfg.scale);
+  // ============ Create player (placeholder box) ============
+  const placeholderMat = new THREE.MeshStandardMaterial({ color: 0x4ecca3, emissive: 0x4ecca3, emissiveIntensity: 0.1 });
+  const placeholderMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 0.6), placeholderMat);
+  placeholderMesh.position.set(0, 1, 0);
+  placeholderMesh.castShadow = true;
+  scene.add(placeholderMesh);
 
   const player = new Character(scene, 'player', {
     speed: 5,
     maxHealth: 100,
     attackDamage: 15,
   });
-  player.setModel(model);
-
-  for (const [key] of Object.entries(cfg.animations)) {
-    const clip = registry.get(`vibe_knight_anim_${key}`);
-    if (clip) player.addAnimation(key, clip);
-  }
+  player.setModel(new THREE.Group().add(placeholderMesh));
   player.playAnimation('Idle');
-
-  model.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-    }
-  });
 
   const bodyDesc = RAPIER.RigidBodyDesc.kinematicVelocityBased()
     .setTranslation(0, 0.5, 0);
@@ -85,7 +59,7 @@ async function main(): Promise<void> {
   const movementController = new MovementController(player);
 
   const cameraController = new CameraController(camera, scene);
-  cameraController.setTarget(model);
+  cameraController.setTarget(placeholderMesh);
   cameraController.setOffset(new THREE.Vector3(0, 8, 12));
   cameraController.reset();
 
@@ -97,14 +71,14 @@ async function main(): Promise<void> {
     inputManager.setJoystickInput(x, z);
   });
 
-  // ============ Enemy ============
-  const enemyModel = new THREE.Mesh(
+  // ============ Enemy (box) ============
+  const enemyMesh = new THREE.Mesh(
     new THREE.BoxGeometry(1, 2, 1),
     new THREE.MeshStandardMaterial({ color: 0xe94560 }),
   );
-  enemyModel.position.set(5, 1, 5);
-  enemyModel.castShadow = true;
-  scene.add(enemyModel);
+  enemyMesh.position.set(5, 1, 5);
+  enemyMesh.castShadow = true;
+  scene.add(enemyMesh);
 
   const enemy = new Character(scene, 'enemy_1', {
     speed: 0,
@@ -112,11 +86,9 @@ async function main(): Promise<void> {
     attackDamage: 5,
   });
 
-  const enemyBodyDesc = RAPIER.RigidBodyDesc.fixed()
-    .setTranslation(5, 0.5, 5);
+  const enemyBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(5, 0.5, 5);
   const enemyBody = physics.world.createRigidBody(enemyBodyDesc);
-  const enemyColliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 1.0, 0.5)
-    .setTranslation(0, 1.0, 0);
+  const enemyColliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 1.0, 0.5).setTranslation(0, 1.0, 0);
   const enemyCollider = physics.world.createCollider(enemyColliderDesc, enemyBody);
   enemy.setRigidBody(enemyBody, enemyCollider);
 
@@ -124,25 +96,20 @@ async function main(): Promise<void> {
   hitboxCtrl.registerEntityCollider('player', collider);
   hitboxCtrl.registerEntityCollider('enemy_1', enemyCollider);
   hitboxCtrl.registerHitbox(
-    'player_attack',
-    body,
-    { x: 0, y: 1, z: 1.5 },
-    { x: 1.0, y: 1.0, z: 1.0 },
-    0.1,
-    0.5,
+    'player_attack', body,
+    { x: 0, y: 1, z: 1.5 }, { x: 1.0, y: 1.0, z: 1.0 },
+    0.1, 0.5,
   );
 
   const damageSystem = new DamageSystem();
-
   let attackTriggered = false;
   let attackKeyWasDown = false;
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      movementController.reset();
-    }
+    if (document.hidden) movementController.reset();
   });
 
+  // ============ Game loop (starts immediately) ============
   engine.addUpdateFn((dt) => {
     physics.step(dt);
 
@@ -170,16 +137,12 @@ async function main(): Promise<void> {
 
     if (player.fsm.getState() === CharacterState.Attack && attackTriggered) {
       const animTime = player.mixer?.time ?? 0;
-      const hits = hitboxCtrl.update(dt, animTime, 'player');
-      for (const id of hits) {
+      for (const id of hitboxCtrl.update(dt, animTime, 'player')) {
         if (id === 'enemy_1') {
-          const result = damageSystem.calculateDamage(
-            { attackDamage: player.attackDamage },
-            {},
-          );
-          if (!result.isDodge) {
-            enemy.takeDamage(result.amount);
-            hud.showDamage(result.amount, result.isCrit, enemyModel.position);
+          const r = damageSystem.calculateDamage({ attackDamage: player.attackDamage }, {});
+          if (!r.isDodge) {
+            enemy.takeDamage(r.amount);
+            hud.showDamage(r.amount, r.isCrit, enemyMesh.position);
           }
         }
       }
@@ -189,18 +152,13 @@ async function main(): Promise<void> {
     if (enemy.fsm.getState() !== CharacterState.Attack &&
         enemy.fsm.getState() !== CharacterState.Hit &&
         enemy.fsm.getState() !== CharacterState.Die) {
-      const ePos = enemy.getPosition();
-      const pPos = player.getPosition();
-      const dist = pPos.distanceTo(ePos);
+      const dist = enemy.getPosition().distanceTo(player.getPosition());
       if (dist < 2.5) {
         enemy.attack();
-        const eResult = damageSystem.calculateDamage(
-          { attackDamage: enemy.attackDamage },
-          {},
-        );
-        if (!eResult.isDodge) {
-          player.takeDamage(eResult.amount);
-          hud.showDamage(eResult.amount, eResult.isCrit, pPos);
+        const r = damageSystem.calculateDamage({ attackDamage: enemy.attackDamage }, {});
+        if (!r.isDodge) {
+          player.takeDamage(r.amount);
+          hud.showDamage(r.amount, r.isCrit, player.getPosition());
         }
       }
     }
@@ -208,6 +166,63 @@ async function main(): Promise<void> {
 
   loadingScreen.hide();
   engine.start();
+
+  // ============ Load real FBX assets in background ============
+  loadRealPlayerModel(scene, player, cameraController, loadingScreen);
+}
+
+async function loadRealPlayerModel(
+  scene: THREE.Scene,
+  player: Character,
+  cameraController: CameraController,
+  loadingScreen: LoadingScreen,
+): Promise<void> {
+  try {
+    loadingScreen.setText('Loading 3D model...');
+    loadingScreen.show();
+
+    const assetConfig = await loadAssetConfig();
+    const assetLoader = new AssetLoader();
+    let total = 0;
+    for (const c of Object.values(assetConfig.characters)) {
+      total += 1 + Object.keys(c.animations).length;
+    }
+    assetLoader.setOnProgress((loaded, _total) => {
+      loadingScreen.setProgress(loaded, total);
+    });
+
+    await assetLoader.loadAll(assetConfig);
+
+    const cfg = assetConfig.characters['vibe_knight'];
+    const registry = AssetRegistry.getInstance();
+    const model = registry.get('vibe_knight_model') as THREE.Group;
+    model.scale.set(cfg.scale, cfg.scale, cfg.scale);
+
+    model.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    const oldPos = player.getPosition();
+    model.position.copy(oldPos);
+
+    player.setModel(model);
+    for (const [key] of Object.entries(cfg.animations)) {
+      const clip = registry.get(`vibe_knight_anim_${key}`);
+      if (clip) player.addAnimation(key, clip);
+    }
+    player.playAnimation('Idle');
+
+    cameraController.setTarget(model);
+    cameraController.reset();
+
+    loadingScreen.hide();
+  } catch (err) {
+    console.warn('Failed to load 3D model, using placeholder:', err);
+    loadingScreen.hide();
+  }
 }
 
 main().catch((err) => {
