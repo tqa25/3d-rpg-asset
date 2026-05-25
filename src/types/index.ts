@@ -22,6 +22,27 @@ export interface EntityData {
   state: CharacterState;
 }
 
+export interface BaseStats {
+  str: number;
+  vit: number;
+  agi: number;
+}
+
+export interface BonusStats {
+  attack: number;
+  defense: number;
+  critRate: number;
+  dodgeRate: number;
+}
+
+export interface DerivedStats {
+  maxHp: number;
+  attack: number;
+  defense: number;
+  critRate: number;
+  dodgeRate: number;
+}
+
 export interface CharacterConfig {
   name: string;
   modelUrl: string;

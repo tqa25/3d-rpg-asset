@@ -1,26 +1,36 @@
+import type { DerivedStats } from '../types/index.js';
+
+interface Combatant {
+  level: number;
+  stats: DerivedStats;
+}
+
 export class DamageSystem {
   calculateDamage(
-    attacker: { attackDamage: number },
-    defender: { defense?: number },
+    attacker: Combatant,
+    defender: Combatant,
   ): { amount: number; isCrit: boolean; isDodge: boolean } {
-    const rand = Math.random();
-
-    if (rand < 0.1) {
+    const dodgeRoll = Math.random();
+    if (dodgeRoll < defender.stats.dodgeRate) {
       return { amount: 0, isCrit: false, isDodge: true };
     }
 
-    let amount = attacker.attackDamage;
-    let isCrit = false;
+    let amount = attacker.stats.attack;
 
-    if (Math.random() < 0.15) {
+    const critRoll = Math.random();
+    let isCrit = false;
+    if (critRoll < attacker.stats.critRate) {
       amount *= 2;
       isCrit = true;
     }
 
-    if (defender.defense !== undefined && defender.defense > 0) {
-      const reduction = Math.min(defender.defense, 50);
+    if (defender.stats.defense > 0) {
+      const reduction = Math.min(defender.stats.defense, 50);
       amount = Math.round(amount * (1 - reduction / 100));
     }
+
+    const levelMult = getLevelMultiplier(attacker.level, defender.level);
+    amount = Math.round(amount * levelMult);
 
     return { amount, isCrit, isDodge: false };
   }
@@ -50,4 +60,9 @@ export class DamageSystem {
 
     return Math.floor(base * multiplier);
   }
+}
+
+export function getLevelMultiplier(attackerLevel: number, defenderLevel: number): number {
+  const diff = attackerLevel - defenderLevel;
+  return 1 + Math.max(-0.5, Math.min(0.5, diff * 0.05));
 }

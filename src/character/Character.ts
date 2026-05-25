@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { CharacterState } from '../types/index.js';
+import type { DerivedStats } from '../types/index.js';
 import { CharacterFSM } from './CharacterFSM.js';
 import { ActionQueue } from './ActionQueue.js';
 
@@ -21,7 +22,8 @@ export class Character {
   health: number;
   maxHealth: number;
   speed: number;
-  attackDamage: number;
+  stats: DerivedStats;
+  level: number;
 
   isDead = false;
 
@@ -35,14 +37,15 @@ export class Character {
   constructor(
     scene: THREE.Scene,
     id: string,
-    config: { speed: number; maxHealth: number; attackDamage: number; attackCooldown?: number; invincibilityDuration?: number },
+    config: { speed: number; stats: DerivedStats; level?: number; attackCooldown?: number; invincibilityDuration?: number },
   ) {
     this.scene = scene;
     this.id = id;
     this.speed = config.speed;
-    this.maxHealth = config.maxHealth;
-    this.health = config.maxHealth;
-    this.attackDamage = config.attackDamage;
+    this.stats = config.stats;
+    this.level = config.level ?? 1;
+    this.maxHealth = config.stats.maxHp;
+    this.health = config.stats.maxHp;
     this._attackCooldownDefault = config.attackCooldown ?? 1.0;
     this._invincibilityDuration = config.invincibilityDuration ?? 0.5;
     this.fsm = new CharacterFSM();
