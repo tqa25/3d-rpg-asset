@@ -16,7 +16,7 @@ export class MobAIController {
   character: Character;
   config: MobConfig;
   spawnPosition: THREE.Vector3;
-  mesh: THREE.Mesh;
+  mesh: THREE.Object3D;
   private damageSystem: DamageSystem;
   private aiState: AIState = 'patrol';
   private _isDead = false;
@@ -32,7 +32,7 @@ export class MobAIController {
     character: Character,
     config: MobConfig,
     spawnPosition: THREE.Vector3,
-    mesh: THREE.Mesh,
+    mesh: THREE.Object3D,
   ) {
     this.character = character;
     this.config = config;

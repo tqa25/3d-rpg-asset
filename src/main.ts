@@ -158,13 +158,21 @@ async function main(): Promise<void> {
 
     raycaster.setFromCamera(pointer, camera);
 
-    // Check mob meshes
-    const mobMeshes = mobControllers.filter(m => !m.isDead()).map(m => m.mesh);
-    const intersects = raycaster.intersectObjects(mobMeshes, false);
+    // Collect all descendant meshes from mob controllers (handles both Mesh and Group)
+    const mobTargets = new Map<THREE.Object3D, MobAIController>();
+    for (const c of mobControllers) {
+      if (c.isDead()) continue;
+      c.mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          mobTargets.set(child, c);
+        }
+      });
+    }
+    const intersects = raycaster.intersectObjects([...mobTargets.keys()], false);
 
     if (intersects.length > 0) {
       const hitMesh = intersects[0].object;
-      const controller = mobControllers.find(m => m.mesh === hitMesh);
+      const controller = mobTargets.get(hitMesh);
       if (controller) {
         targetingSystem.selectTarget(controller.character.id, controller.character.getPosition());
       }
@@ -252,7 +260,7 @@ async function main(): Promise<void> {
   engine.start();
 
   // ============ Load real FBX assets in background ============
-  loadRealPlayerModel(scene, player, cameraController, loadingScreen);
+  loadRealPlayerModel(scene, player, cameraController, loadingScreen, mobControllers);
 }
 
 async function loadRealPlayerModel(
@@ -260,6 +268,7 @@ async function loadRealPlayerModel(
   player: Character,
   cameraController: CameraController,
   loadingScreen: LoadingScreen,
+  mobControllers: MobAIController[],
 ): Promise<void> {
   try {
     loadingScreen.setText('Loading 3D model...');
@@ -277,12 +286,14 @@ async function loadRealPlayerModel(
 
     await assetLoader.loadAll(assetConfig);
 
-    const cfg = assetConfig.characters['vibe_knight'];
     const registry = AssetRegistry.getInstance();
-    const model = registry.get('vibe_knight_model') as THREE.Group;
-    model.scale.set(cfg.scale, cfg.scale, cfg.scale);
 
-    model.traverse((child) => {
+    // === Upgrade player to vibe_knight model ===
+    const knightCfg = assetConfig.characters['vibe_knight'];
+    const knightModel = registry.get('vibe_knight_model') as THREE.Group;
+    knightModel.scale.set(knightCfg.scale, knightCfg.scale, knightCfg.scale);
+
+    knightModel.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
@@ -290,10 +301,10 @@ async function loadRealPlayerModel(
     });
 
     const oldPos = player.getPosition();
-    model.position.copy(oldPos);
+    knightModel.position.copy(oldPos);
 
-    player.setModel(model);
-    for (const [key] of Object.entries(cfg.animations)) {
+    player.setModel(knightModel);
+    for (const [key] of Object.entries(knightCfg.animations)) {
       const clip = registry.get(`vibe_knight_anim_${key}`);
       if (clip) {
         const normalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
@@ -302,8 +313,43 @@ async function loadRealPlayerModel(
     }
     player.playAnimation('Idle');
 
-    cameraController.setTarget(model);
+    cameraController.setTarget(knightModel);
     cameraController.reset();
+
+    // === Upgrade mobs to zombie_girl model ===
+    const zombCfg = assetConfig.characters['zombie_girl'];
+    if (zombCfg) {
+      const zombModelProto = registry.get('zombie_girl_model') as THREE.Group;
+      for (const mc of mobControllers) {
+        if (mc.isDead()) continue;
+
+        const clone = zombModelProto.clone(true);
+        clone.scale.set(zombCfg.scale, zombCfg.scale, zombCfg.scale);
+
+        clone.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+
+        const oldMobPos = mc.character.getPosition();
+        clone.position.copy(oldMobPos);
+
+        const mobChar = mc.character;
+        mobChar.setModel(clone);
+        for (const [key] of Object.entries(zombCfg.animations)) {
+          const clip = registry.get(`zombie_girl_anim_${key}`);
+          if (clip) {
+            const normalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
+            mobChar.addAnimation(normalizedKey, clip);
+          }
+        }
+        mobChar.playAnimation('Idle');
+
+        mc.mesh = clone;
+      }
+    }
 
     loadingScreen.hide();
   } catch (err) {
