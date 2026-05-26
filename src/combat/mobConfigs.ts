@@ -12,6 +12,8 @@ export interface MobConfig {
   patrolRadius: number;
   respawnDelay: number;
   attackCooldown: number;
+  color: number;
+  scale: number;
 }
 
 export const MOB_CONFIGS: MobConfig[] = [
@@ -27,6 +29,8 @@ export const MOB_CONFIGS: MobConfig[] = [
     patrolRadius: 4,
     respawnDelay: 5,
     attackCooldown: 2.0,
+    color: 0x4caf50,
+    scale: 0.8,
   },
   {
     id: 'wolf',
@@ -40,6 +44,8 @@ export const MOB_CONFIGS: MobConfig[] = [
     patrolRadius: 5,
     respawnDelay: 5,
     attackCooldown: 1.5,
+    color: 0x9e9e9e,
+    scale: 1.0,
   },
   {
     id: 'skeleton',
@@ -53,6 +59,8 @@ export const MOB_CONFIGS: MobConfig[] = [
     patrolRadius: 5,
     respawnDelay: 6,
     attackCooldown: 1.5,
+    color: 0xf5f5dc,
+    scale: 1.1,
   },
   {
     id: 'orc',
@@ -66,6 +74,8 @@ export const MOB_CONFIGS: MobConfig[] = [
     patrolRadius: 4,
     respawnDelay: 6,
     attackCooldown: 1.2,
+    color: 0x8b4513,
+    scale: 1.2,
   },
   {
     id: 'dark_knight',
@@ -79,5 +89,7 @@ export const MOB_CONFIGS: MobConfig[] = [
     patrolRadius: 5,
     respawnDelay: 8,
     attackCooldown: 1.0,
+    color: 0x1a1a2e,
+    scale: 1.0,
   },
 ];

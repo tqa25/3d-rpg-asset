@@ -50,12 +50,6 @@ export class MobAIController {
       return null;
     }
 
-    // Sync mesh from physics body
-    if (this.character.body && this.character.mesh) {
-      const t = this.character.body.translation();
-      this.character.mesh.position.set(t.x, t.y, t.z);
-    }
-
     const mobPos = this.character.getPosition();
     const distToPlayer = mobPos.distanceTo(playerPos);
     const distToSpawn = mobPos.distanceTo(this.spawnPosition);
@@ -162,7 +156,8 @@ export class MobAIController {
     const normX = dx / len;
     const normZ = dz / len;
 
-    this.character.setVelocity(normX * speed, normZ * speed);
+    const step = speed * dt;
+    this.character.setPosition(mobPos.x + normX * step, 0.5, mobPos.z + normZ * step);
 
     const state = this.character.fsm.getState();
     if (state === CharacterState.Idle || state === CharacterState.Attack || state === CharacterState.Hit) {
@@ -171,14 +166,15 @@ export class MobAIController {
       }
     }
 
-    // Rotate toward movement direction
+    // Rotate toward movement direction (framerate-independent slerp)
     this._euler.set(0, Math.atan2(normX, normZ), 0);
     this._targetQuat.setFromEuler(this._euler);
 
     const mesh = this.character.mesh;
     if (mesh) {
-      const t = Math.min(1, 10 * dt);
-      mesh.quaternion.slerp(this._targetQuat, t);
+      const slerpSpeed = 0.15;
+      const factor = 1 - Math.pow(1 - slerpSpeed, dt * 60);
+      mesh.quaternion.slerp(this._targetQuat, Math.min(1, factor));
     }
   }
 

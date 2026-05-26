@@ -86,7 +86,6 @@ async function main(): Promise<void> {
 
   // ============ Spawn mobs ============
   const mobControllers: MobAIController[] = [];
-  const mobColors = [0xe94560, 0xff6b35, 0x8e44ad, 0x2ecc71, 0xf1c40f];
 
   const hitboxCtrl = new HitboxController(physics.world);
   hitboxCtrl.registerEntityCollider('player', collider);
@@ -113,13 +112,12 @@ async function main(): Promise<void> {
   for (let i = 0; i < mobCount; i++) {
     const cfg = MOB_CONFIGS[i % MOB_CONFIGS.length];
     const spawn = getSpawnPosition();
-    const idx = i % mobColors.length;
 
     const mobStats = computeDerived(cfg.stats, { attack: 0, defense: 0, critRate: 0, dodgeRate: 0 });
 
     const mobMesh = new THREE.Mesh(
       new THREE.BoxGeometry(1, 2, 1),
-      new THREE.MeshStandardMaterial({ color: mobColors[idx] }),
+      new THREE.MeshStandardMaterial({ color: cfg.color }),
     );
     mobMesh.position.set(spawn.x, 1, spawn.z);
     mobMesh.castShadow = true;
@@ -323,13 +321,23 @@ async function loadRealPlayerModel(
       for (const mc of mobControllers) {
         if (mc.isDead()) continue;
 
+        const cfg = mc.config;
         const clone = zombModelProto.clone(true);
-        clone.scale.set(zombCfg.scale, zombCfg.scale, zombCfg.scale);
+        const s = zombCfg.scale * cfg.scale;
+        clone.scale.set(s, s, s);
 
         clone.traverse((child) => {
           if (child instanceof THREE.Mesh) {
             child.castShadow = true;
             child.receiveShadow = true;
+            const mat = child.material;
+            if (mat) {
+              const tint = (mat as THREE.MeshStandardMaterial).clone();
+              tint.color.setHex(cfg.color);
+              tint.emissive = new THREE.Color(cfg.color);
+              tint.emissiveIntensity = 0.08;
+              child.material = tint;
+            }
           }
         });
 
