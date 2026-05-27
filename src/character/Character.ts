@@ -96,21 +96,20 @@ export class Character {
   }
 
   setPosition(x: number, y: number, z: number): void {
-    if (this.mesh) {
-      this.mesh.position.set(x, y, z);
-    }
     if (this.body) {
       this.body.setNextKinematicTranslation({ x, y, z });
+    } else if (this.mesh) {
+      this.mesh.position.set(x, y, z);
     }
   }
 
   getPosition(): THREE.Vector3 {
-    if (this.mesh) {
-      return this.mesh.position.clone();
-    }
     if (this.body) {
       const t = this.body.translation();
       return new THREE.Vector3(t.x, t.y, t.z);
+    }
+    if (this.mesh) {
+      return this.mesh.position.clone();
     }
     return this._position.clone();
   }

@@ -1,11 +1,12 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 
-const FIXED_DT = 1 / 60;
+export const FIXED_DT = 1 / 60;
 const MAX_STEPS = 4;
 
 export interface PhysicsWorld {
   world: RAPIER.World;
   step(dt: number): void;
+  getAlpha(): number;
 }
 
 export async function initPhysics(): Promise<PhysicsWorld> {
@@ -24,10 +25,14 @@ export async function initPhysics(): Promise<PhysicsWorld> {
       accumulator -= FIXED_DT;
       steps++;
     }
-    if (steps === MAX_STEPS) {
-      accumulator = 0;
+    if (steps >= MAX_STEPS) {
+      accumulator = Math.min(accumulator, FIXED_DT);
     }
   };
 
-  return { world, step };
+  const getAlpha = (): number => {
+    return Math.min(1, accumulator / FIXED_DT);
+  };
+
+  return { world, step, getAlpha };
 }

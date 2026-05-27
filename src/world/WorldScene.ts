@@ -20,10 +20,10 @@ export class WorldScene {
     canvas.height = 256;
     const ctx = canvas.getContext('2d')!;
 
-    ctx.fillStyle = '#3a3a5c';
+    ctx.fillStyle = '#4caf50'; // Màu nền xanh cỏ
     ctx.fillRect(0, 0, 256, 256);
 
-    ctx.strokeStyle = '#4a4a6c';
+    ctx.strokeStyle = '#2e7d32'; // Màu viền ô vuông (cỏ đậm)
     ctx.lineWidth = 2;
     const gridSize = 16;
     for (let i = 0; i <= 256; i += gridSize) {

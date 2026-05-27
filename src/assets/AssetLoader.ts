@@ -18,6 +18,7 @@ export class AssetLoader {
   private onProgressCb: ((loaded: number, total: number) => void) | null = null;
 
   constructor() {
+    THREE.Cache.enabled = true;
     this.manager = new THREE.LoadingManager();
 
     this.manager.onProgress = (_url: string, loaded: number, total: number) => {
@@ -44,10 +45,14 @@ export class AssetLoader {
   }
 
   loadFBX(url: string): Promise<THREE.Group> {
+    console.log(`[FBX] Đang tải: ${url}`);
     return new Promise((resolve, reject) => {
       this.fbxLoader.load(
         url,
-        (group) => resolve(group),
+        (group) => {
+          console.log(`[FBX] ✅ Tải xong: ${url}`);
+          resolve(group);
+        },
         undefined,
         (err) => reject(new Error(`FBX load failed for ${url}: ${errMsg(err)}`)),
       );
@@ -55,10 +60,14 @@ export class AssetLoader {
   }
 
   loadGLTF(url: string): Promise<THREE.Group> {
+    console.log(`[GLTF] Đang tải: ${url}`);
     return new Promise((resolve, reject) => {
       this.gltfLoader.load(
         url,
-        (gltf) => resolve(gltf.scene),
+        (gltf) => {
+          console.log(`[GLTF] ✅ Tải xong: ${url}`);
+          resolve(gltf.scene);
+        },
         undefined,
         (err) => reject(new Error(`GLTF load failed for ${url}: ${errMsg(err)}`)),
       );
@@ -88,12 +97,24 @@ export class AssetLoader {
     const jobs: Promise<void>[] = [];
 
     for (const [charId, charConfig] of Object.entries(config.characters)) {
+      console.log(`[FBX] 🔄 Lên lịch tải cho nhân vật: ${charId}`);
       const modelUrl = this.resolveUrl(charConfig.modelUrl);
-      jobs.push(
-        this.loadFBX(modelUrl).then((model) => {
-          registry.set(`${charId}_model`, model);
-        }),
-      );
+      const isGLTF = /\.glb$/i.test(modelUrl) || /\.gltf$/i.test(modelUrl);
+      if (isGLTF) {
+        jobs.push(
+          this.loadGLTF(modelUrl).then((model) => {
+            registry.set(`${charId}_model`, model);
+            console.log(`[GLTF] 📦 Lưu registry: ${charId}_model`);
+          }),
+        );
+      } else {
+        jobs.push(
+          this.loadFBX(modelUrl).then((model) => {
+            registry.set(`${charId}_model`, model);
+            console.log(`[FBX] 📦 Lưu registry: ${charId}_model`);
+          }),
+        );
+      }
 
       for (const [animKey, animUrl] of Object.entries(charConfig.animations)) {
         const resolvedUrl = this.resolveUrl(animUrl);
@@ -101,14 +122,26 @@ export class AssetLoader {
           this.loadFBX(resolvedUrl).then((fbx) => {
             if (fbx.animations && fbx.animations.length > 0) {
               registry.set(`${charId}_anim_${animKey}`, fbx.animations[0]);
+              console.log(`[FBX] 📦 Lưu registry: ${charId}_anim_${animKey}`);
             }
           }),
         );
       }
 
       registry.set(`${charId}_config`, charConfig);
+      console.log(`[FBX] ⚙️ Lưu registry: ${charId}_config`);
     }
 
-    await Promise.all(jobs);
+    const results = await Promise.allSettled(jobs);
+    let hasFailures = false;
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        console.warn('AssetLoader: individual asset load failed:', r.reason);
+        hasFailures = true;
+      }
+    }
+    if (hasFailures) {
+      console.warn('AssetLoader: some assets failed to load, using partial results');
+    }
   }
 }

@@ -172,7 +172,7 @@ export class MobAIController {
 
     const mesh = this.character.mesh;
     if (mesh) {
-      const slerpSpeed = 0.15;
+      const slerpSpeed = Math.min(0.3, 0.05 + this.config.speed * 0.08);
       const factor = 1 - Math.pow(1 - slerpSpeed, dt * 60);
       mesh.quaternion.slerp(this._targetQuat, Math.min(1, factor));
     }

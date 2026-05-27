@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Engine } from './core/Engine.js';
 import { initPhysics } from './core/Physics.js';
@@ -21,6 +22,18 @@ import { computeDerived } from './combat/StatsSystem.js';
 import { MOB_CONFIGS } from './combat/mobConfigs.js';
 import { MobAIController } from './combat/MobAIController.js';
 import { TargetingSystem } from './combat/TargetingSystem.js';
+
+function tintMaterial(mat: THREE.Material | THREE.Material[], color: number): void {
+  const materials = Array.isArray(mat) ? mat : [mat];
+  for (const m of materials) {
+    if (!(m instanceof THREE.MeshStandardMaterial)) continue;
+    const tint = m.clone();
+    tint.color.setHex(color);
+    tint.emissive = new THREE.Color(color);
+    tint.emissiveIntensity = 0.08;
+    m.copy(tint);
+  }
+}
 
 async function main(): Promise<void> {
   const loadingScreen = new LoadingScreen();
@@ -199,13 +212,18 @@ async function main(): Promise<void> {
     }
     attackKeyWasDown = attackDown;
 
-    // Sync mesh position from physics body
+    // Sync mesh positions from physics body (all entities)
+    const bounds = world.getBounds();
     if (player.body && player.mesh) {
       const t = player.body.translation();
-      const bounds = world.getBounds();
       const cx = Math.max(bounds.minX, Math.min(bounds.maxX, t.x));
       const cz = Math.max(bounds.minZ, Math.min(bounds.maxZ, t.z));
       player.mesh.position.set(cx, t.y, cz);
+    }
+    for (const mc of mobControllers) {
+      if (mc.isDead() || !mc.character.body || !mc.character.mesh) continue;
+      const t = mc.character.body.translation();
+      mc.character.mesh.position.set(t.x, t.y, t.z);
     }
 
     player.update(dt);
@@ -254,7 +272,6 @@ async function main(): Promise<void> {
     }
   });
 
-  loadingScreen.hide();
   engine.start();
 
   // ============ Load real FBX assets in background ============
@@ -268,11 +285,16 @@ async function loadRealPlayerModel(
   loadingScreen: LoadingScreen,
   mobControllers: MobAIController[],
 ): Promise<void> {
+  console.log('[FBX] loadRealPlayerModel() bắt đầu — thay placeholder bằng model 3D');
   try {
     loadingScreen.setText('Loading 3D model...');
     loadingScreen.show();
 
+    loadingScreen.setText('Loading asset config...');
     const assetConfig = await loadAssetConfig();
+    console.log('[FBX] assets-config.json OK — các nhân vật:', Object.keys(assetConfig.characters));
+
+    loadingScreen.setText('Initializing asset loader...');
     const assetLoader = new AssetLoader();
     let total = 0;
     for (const c of Object.values(assetConfig.characters)) {
@@ -282,16 +304,24 @@ async function loadRealPlayerModel(
       loadingScreen.setProgress(loaded, total);
     });
 
+    loadingScreen.setText(`Loading ${total} FBX assets...`);
+    const startTime = performance.now();
     await assetLoader.loadAll(assetConfig);
+    console.log(`[FBX] Tải xong ${total} files trong ${(performance.now() - startTime).toFixed(0)}ms`);
 
     const registry = AssetRegistry.getInstance();
+    console.log('[FBX] Kho đồ (AssetRegistry) có các key:', Array.from(registry.getAll().keys()));
 
-    // === Upgrade player to vibe_knight model ===
-    const knightCfg = assetConfig.characters['vibe_knight'];
-    const knightModel = registry.get('vibe_knight_model') as THREE.Group;
-    knightModel.scale.set(knightCfg.scale, knightCfg.scale, knightCfg.scale);
+    // === Upgrade player to main_char model ===
+    const charId = 'main_char';
+    const charCfg = assetConfig.characters[charId];
+    const charModel = registry.get(`${charId}_model`) as THREE.Group | undefined;
+    if (!charModel) {
+      throw new Error(`${charId} model not found in registry after loading`);
+    }
+    charModel.scale.set(charCfg.scale, charCfg.scale, charCfg.scale);
 
-    knightModel.traverse((child) => {
+    charModel.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
@@ -299,11 +329,11 @@ async function loadRealPlayerModel(
     });
 
     const oldPos = player.getPosition();
-    knightModel.position.copy(oldPos);
+    charModel.position.copy(oldPos);
 
-    player.setModel(knightModel);
-    for (const [key] of Object.entries(knightCfg.animations)) {
-      const clip = registry.get(`vibe_knight_anim_${key}`);
+    player.setModel(charModel);
+    for (const [key] of Object.entries(charCfg.animations)) {
+      const clip = registry.get(`${charId}_anim_${key}`);
       if (clip) {
         const normalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
         player.addAnimation(normalizedKey, clip);
@@ -311,33 +341,27 @@ async function loadRealPlayerModel(
     }
     player.playAnimation('Idle');
 
-    cameraController.setTarget(knightModel);
+    cameraController.setTarget(charModel);
     cameraController.reset();
 
-    // === Upgrade mobs to zombie_girl model ===
-    const zombCfg = assetConfig.characters['zombie_girl'];
-    if (zombCfg) {
-      const zombModelProto = registry.get('zombie_girl_model') as THREE.Group;
+    // === Upgrade mobs to main_char model ===
+    const modelProto = registry.get(`${charId}_model`) as THREE.Group | undefined;
+    if (!modelProto) {
+      console.warn(`${charId} model not found — mobs keep placeholders`);
+    } else {
       for (const mc of mobControllers) {
         if (mc.isDead()) continue;
 
         const cfg = mc.config;
-        const clone = zombModelProto.clone(true);
-        const s = zombCfg.scale * cfg.scale;
+        const clone = SkeletonUtils.clone(modelProto) as THREE.Group;
+        const s = charCfg.scale * cfg.scale;
         clone.scale.set(s, s, s);
 
         clone.traverse((child) => {
           if (child instanceof THREE.Mesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            const mat = child.material;
-            if (mat) {
-              const tint = (mat as THREE.MeshStandardMaterial).clone();
-              tint.color.setHex(cfg.color);
-              tint.emissive = new THREE.Color(cfg.color);
-              tint.emissiveIntensity = 0.08;
-              child.material = tint;
-            }
+            tintMaterial(child.material, cfg.color);
           }
         });
 
@@ -346,8 +370,8 @@ async function loadRealPlayerModel(
 
         const mobChar = mc.character;
         mobChar.setModel(clone);
-        for (const [key] of Object.entries(zombCfg.animations)) {
-          const clip = registry.get(`zombie_girl_anim_${key}`);
+        for (const [key] of Object.entries(charCfg.animations)) {
+          const clip = registry.get(`${charId}_anim_${key}`);
           if (clip) {
             const normalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
             mobChar.addAnimation(normalizedKey, clip);
@@ -359,10 +383,12 @@ async function loadRealPlayerModel(
       }
     }
 
+    console.log('[Assets] Toàn bộ quá trình load assets hoàn tất!');
     loadingScreen.hide();
   } catch (err) {
-    console.warn('Failed to load 3D model, using placeholder:', err);
-    loadingScreen.hide();
+    console.warn('[Assets] LỖI — load model 3D thất bại, giữ placeholder:', err);
+    loadingScreen.setText(`Asset load failed: ${err instanceof Error ? err.message : 'Unknown error'}. Using placeholders.`);
+    setTimeout(() => loadingScreen.hide(), 3000);
   }
 }
 
