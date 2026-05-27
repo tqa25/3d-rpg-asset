@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "read": {
+      "/home/ubuntu/workspaces/phone_game/.opencode/get-shit-done/*": "allow"
+    },
+    "external_directory": {
+      "/home/ubuntu/workspaces/phone_game/.opencode/get-shit-done/*": "allow"
+    }
+  }
+}
