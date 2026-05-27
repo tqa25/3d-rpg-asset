@@ -3,7 +3,7 @@
     "main_char": {
       "name": "Main Character",
       "modelUrl": "assets/main_char.glb",
-      "scale": 0.01,
+      "scale": 1.0,
       "animations": {
         "idle": "assets/Idle.fbx",
         "run": "assets/Run.fbx",
